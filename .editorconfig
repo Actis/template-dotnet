@@ -1,0 +1,71 @@
+# EditorConfig is awesome: http://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# Default settings
+[*]
+charset = utf-8
+end_of_line = crlf
+
+# .NET
+[*.{cs,csx,vb,vbx,ashx}]
+charset = utf-8-bom
+#indent_size = tab
+indent_style = tab
+insert_final_newline = true
+tab_width = 4
+trim_trailing_whitespace = true
+
+[*.{asp,aspx,cshtml,vbhtml}]
+charset = utf-8-bom
+indent_size = 2
+indent_style = space
+
+# Shell scripts
+[*.sh]
+end_of_line = lf
+
+[*.{ps1,psm1}]
+charset = utf-8-bom
+indent_size = 4
+indent_style = space
+
+# Web
+[*.{yml,css,js,json,html}]
+indent_size = 2
+indent_style = space
+
+# XML
+[*.{xml,xsl,xslt,xsd}]
+indent_size = 2
+indent_style = space
+insert_final_newline = false
+
+# Xml project files
+[*.*proj]
+charset = utf-8-bom
+indent_size = 2
+indent_style = space
+insert_final_newline = false
+
+# Xml config files
+[*.{props,targets,ruleset,config,nuspec,pubxml,resx,vsixmanifest,vsct}]
+charset = utf-8-bom
+indent_size = 2
+indent_style = space
+insert_final_newline = false
+
+# CSharp code style settings:
+[*.cs]
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_prefer_braces = true:suggestion
+csharp_new_line_before_open_brace = accessors, control_blocks, events, indexers, local_functions, methods, properties, types
+csharp_indent_labels = no_change
+csharp_space_after_cast = true
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_method_call_parameter_list_parentheses = false
+csharp_space_between_parentheses = false
+csharp_preserve_single_line_statements = false
+csharp_preserve_single_line_blocks = true

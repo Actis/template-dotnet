@@ -1,0 +1,16 @@
+﻿<Project>
+
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Update="appsettings.*.json" CopyToPublishDirectory="Never" />
+    <Content Update="bower.json" CopyToPublishDirectory="Never" />
+    <Content Update="bundleconfig.json" CopyToPublishDirectory="Never" />
+    <Content Update="compilerconfig.json" CopyToPublishDirectory="Never" />
+    <Content Update="package.json" CopyToPublishDirectory="Never" />
+    <Content Update="web.*.config" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+</Project>
