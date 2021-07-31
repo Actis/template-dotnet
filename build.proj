@@ -1,0 +1,201 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" TreatAsLocalProperty="ArtifactsDir;BuildDir" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <DeployOnBuild Condition="'$(DeployOnBuild)' == ''">true</DeployOnBuild>
+    <PublishProfile Condition="'$(PublishProfile)' == '' And ('$(OS)' != 'Windows_NT' Or '$(MSBuildRuntimeType)' == 'Core')">FileSystem</PublishProfile>
+    <PublishProfile Condition="'$(PublishProfile)' == ''">Package</PublishProfile>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">15.0</VisualStudioVersion>
+    <ArtifactsDir>$(MSBuildProjectDirectory)\artifacts\</ArtifactsDir>
+    <BuildDir>$(ArtifactsDir)build\</BuildDir>
+    <MSDeployWhatIf Condition="'$(MSDeployWhatif)' == ''">false</MSDeployWhatIf>
+    <MSDeployAuth Condition="'$(MSDeployAuth)' == ''">NTLM</MSDeployAuth>
+    <!-- The folder where the .zip and .cmd file will be located for WebDeploy packages -->
+    <WebDeployPackageDest Condition="'$(WebDeployPackageDest)' == ''">$(BuildDir)</WebDeployPackageDest>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <_WebDeployPackageDestWithSlash>$(WebDeployPackageDest)</_WebDeployPackageDestWithSlash>
+    <_WebDeployPackageDestWithSlash Condition="'$(_WebDeployPackageDestWithSlash)' != '' And !HasTrailingSlash('$(_WebDeployPackageDestWithSlash)')">$(_WebDeployPackageDestWithSlash)\</_WebDeployPackageDestWithSlash>
+    <BuildProperties>Configuration=$(Configuration);VisualStudioVersion=$(VisualStudioVersion)</BuildProperties>
+    <PublishProjectProperties>DeployOnBuild=$(DeployOnBuild);PublishProfile=$(PublishProfile);DesktopBuildPackageLocation=$(_WebDeployPackageDestWithSlash);DeleteExistingFiles=true</PublishProjectProperties>
+    <PublishProjectProperties Condition="Exists('$(MSBuildThisFileDirectory)build\PublishProfiles\$(PublishProfile).pubxml')">$(PublishProjectProperties);_PublishProfilesDir=$(MSBuildThisFileDirectory)build\PublishProfiles\</PublishProjectProperties>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildProjectDirectory)\src\**\*.csproj">
+      <AdditionalProperties>$(PublishProjectProperties)</AdditionalProperties>
+    </ProjectReference>
+  </ItemGroup>
+
+  <ItemDefinitionGroup>
+    <PublishPackages>
+      <!-- Set this to false globally or for every affected package if some cmd.exe special symbols (i.e. ^<>) appear inside the AdditionalMSDeployParameters metadata -->
+      <EnableCmdPublish>true</EnableCmdPublish>
+      <AdditionalMSDeployParameters></AdditionalMSDeployParameters>
+      <IisWebAppName>$(IisPath)</IisWebAppName>
+      <MSDeployDestProvider>auto</MSDeployDestProvider>
+      <SmtpDeliveryMethod>$(SmtpDeliveryMethod)</SmtpDeliveryMethod>
+      <SmtpServerHostname>$(SmtpServer)</SmtpServerHostname>
+      <SmtpServerPort>25</SmtpServerPort>
+      <SmtpServerPort Condition="'$(SmtpServerPort)' != ''">$(SmtpServerPort)</SmtpServerPort>
+      <SmtpServerUsername>$(SmtpServerUsername)</SmtpServerUsername>
+      <SmtpServerPassword>$(SmtpServerPassword)</SmtpServerPassword>
+      <SmtpServerEnableSSL>False</SmtpServerEnableSSL>
+      <SmtpServerEnableSSL Condition="'$(SmtpServerEnableSSL)' == 'True'">True</SmtpServerEnableSSL>
+      <SmtpPickupDirectory>$(SmtpPickupDirectory)</SmtpPickupDirectory>
+      <ConnectionName></ConnectionName>
+      <ConnectionString>$(ConnectionString.Replace(";", "%3B"))</ConnectionString>
+    </PublishPackages>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <!--
+    <PublishPackages Include="">
+      <_IisWebAppName_Regex>$([System.Text.RegularExpressions.Regex]::Escape('%(IisWebAppName)'))</_IisWebAppName_Regex>
+      <AdditionalMSDeployParameters Condition="!Exists('$(_WebDeployPackageDestWithSlash)%(Identity).SetParameters.xml') And '%(IisWebAppName)' != ''">%(AdditionalMSDeployParameters) -setParam:name='IIS Web Application Name',value='%(IisWebAppName)'</AdditionalMSDeployParameters>
+    </PublishPackages>
+    -->
+  </ItemGroup>
+
+  <Target Name="BeforeBuild">
+    <MakeDir Directories="$(ArtifactsDir);$(BuildDir)" />
+  </Target>
+
+  <Target Name="Build" DependsOnTargets="BeforeBuild">
+    <MSBuild Projects="@(ProjectReference)"
+      Properties="$(BuildProperties)"
+      Targets="Build" />
+  </Target>
+
+  <Target Name="BeforeClean" />
+
+  <Target Name="Clean" DependsOnTargets="BeforeClean">
+    <MSBuild Projects="@(ProjectReference)"
+      Properties="$(BuildProperties)"
+      Targets="Clean" />
+
+    <RemoveDir Directories="$(BuildDir)" ContinueOnError="true" />
+  </Target>
+
+  <Target Name="DistClean" DependsOnTargets="Clean">
+    <ItemGroup>
+      <_NodeModules Include="$(MSBuildProjectDirectory)\**\node_modules" />
+    </ItemGroup>
+
+    <RemoveDir Directories="@(_NodeModules)" ContinueOnError="true" />
+    <RemoveDir Directories="$(ArtifactsDir)" ContinueOnError="true" />
+    <RemoveDir Directories="$(MSBuildProjectDirectory)\packages" ContinueOnError="true" />
+  </Target>
+
+  <Target Name="Rebuild" DependsOnTargets="Clean;Build" />
+
+  <Target Name="Restore">
+    <MSBuild Projects="@(ProjectReference)"
+      Properties="$(BuildProperties)"
+      Targets="Restore" />
+  </Target>
+
+  <!--
+    This target is executed once per web project.
+  -->
+  <Target Name="PrepareParametersXml" Outputs="$(_WebDeployPackageDestWithSlash)%(PublishPackages.Identity).SetParameters.xml" Condition="'@(PublishPackages)' != ''">
+    <PropertyGroup>
+      <_DeploySetParametersFile>$([System.IO.Path]::GetFullPath('$(_WebDeployPackageDestWithSlash)%(PublishPackages.Identity).SetParameters.xml'))</_DeploySetParametersFile>
+    </PropertyGroup>
+
+    <!-- Update the SetParameters.xml to have the correct parameter values -->
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.IisWebAppName)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='IIS Web Application Name']/@value"
+      Value="%(PublishPackages.IisWebAppName)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.SmtpDeliveryMethod)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='SMTP Delivery Method']/@value"
+      Value="%(PublishPackages.SmtpDeliveryMethod)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.SmtpServerHostname)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='SMTP Server']/@value"
+      Value="%(PublishPackages.SmtpServerHostname)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.SmtpServerPort)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='SMTP Server Port']/@value"
+      Value="%(PublishPackages.SmtpServerPort)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.SmtpServerUsername)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='SMTP Server Username']/@value"
+      Value="%(PublishPackages.SmtpServerUsername)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.SmtpServerPassword)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='SMTP Server Password']/@value"
+      Value="%(PublishPackages.SmtpServerPassword)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.SmtpServerEnableSSL)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='SMTP Server Enable SSL']/@value"
+      Value="%(PublishPackages.SmtpServerEnableSSL)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.SmtpPickupDirectory)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='SMTP Pickup Directory']/@value"
+      Value="%(PublishPackages.SmtpPickupDirectory)" />
+
+    <XmlPoke Condition="Exists('$(_DeploySetParametersFile)') And '%(PublishPackages.ConnectionName)' != '' And '%(PublishPackages.ConnectionString)' != ''"
+      XmlInputPath="$(_DeploySetParametersFile)"
+      Query="/parameters/setParameter[@name='%(PublishPackages.ConnectionName)']/@value"
+      Value="$([System.String]::Copy(%(PublishPackages.ConnectionString)).Replace(';', '%3B'))" />
+  </Target>
+
+  <Target Name="Publish" Outputs="$(_WebDeployPackageDestWithSlash)%(PublishPackages.Identity).zip" Condition="'@(PublishPackages)' != ''" DependsOnTargets="_ResolveMSDeployPath">
+    <PropertyGroup>
+      <_MSDeployComputerName>$([MSBuild]::ValueOrDefault(`%(PublishPackages.MSDeployComputerName)`, `$(MSDeployComputerName)`))</_MSDeployComputerName>
+      <_MSDeployComputerName Condition="'$(_MSDeployComputerName)' != '' And $(_MSDeployComputerName.StartsWith('https://')) And $(_MSDeployComputerName.IndexOf('?site=')) == -1 And '%(PublishPackages.IisWebAppName)' != ''">$(_MSDeployComputerName)?site=%(PublishPackages.IisWebAppName)</_MSDeployComputerName>
+      <_CmdPublish>false</_CmdPublish>
+      <_CmdPublish Condition="'%(PublishPackages.EnableCmdPublish)' == 'true' And Exists('$(_WebDeployPackageDestWithSlash)%(PublishPackages.Identity).deploy.cmd')">true</_CmdPublish>
+    </PropertyGroup>
+
+    <!--
+      xxx.deploy.cmd /T /M:endpoint_address /A:NTLM /U:domain\username /P:%password%
+    -->
+    <PropertyGroup Condition="'$(_CmdPublish)' == 'true'">
+      <!-- default is no WhatIf unless specified, ensure to clear this each time this target executes -->
+      <_DeployActionSwitch>/Y</_DeployActionSwitch>
+      <_DeployActionSwitch Condition="'$(MSDeployWhatIf)' == 'true'">/T</_DeployActionSwitch>
+      <_Cmd>$([System.IO.Path]::GetFullPath('$(_WebDeployPackageDestWithSlash)%(PublishPackages.Identity).deploy.cmd')) $(_DeployActionSwitch) "/M:$(_MSDeployComputerName)" /A:$(MSDeployAuth) "/U:$(MSDeployUsername)" "/P:$(MSDeployPassword)" "%(PublishPackages.AdditionalMSDeployParameters)"</_Cmd>
+    </PropertyGroup>
+
+    <!--
+      msdeploy.exe -whatif -verb:sync -source:package='xxx.zip' -dest:auto,computerName='endpoint_address',authType=NTLM,userName='domain\username',password='%password%'
+    -->
+    <PropertyGroup Condition="'$(_CmdPublish)' != 'true'">
+      <!-- default is no WhatIf unless specified, ensure to clear this each time this target executes -->
+      <_DeployActionSwitch></_DeployActionSwitch>
+      <_DeployActionSwitch Condition="'$(MSDeployWhatIf)' == 'true'">-whatif</_DeployActionSwitch>
+      <_DeploySetParametersFile>$([System.IO.Path]::GetFullPath('$(_WebDeployPackageDestWithSlash)%(PublishPackages.Identity).SetParameters.xml'))</_DeploySetParametersFile>
+      <!--
+        -setParamFile:"$(_DeploySetParametersFile)"
+        -setParam:kind=ProviderPath,scope=iisApp,value="%(PublishPackages.IisWebAppName)"
+      -->
+      <_SetParam Condition="Exists('$(_DeploySetParametersFile)')">-setParamFile:"$(_DeploySetParametersFile)"</_SetParam>
+      <_SetParam Condition="!Exists('$(_DeploySetParametersFile)')">-setParam:kind=ProviderPath,scope=iisApp,value="%(PublishPackages.IisWebAppName)"</_SetParam>
+      <_Cmd>"$(MSDeployPath)msdeploy.exe" $(_DeployActionSwitch) -verb:sync -source:package='$(_WebDeployPackageDestWithSlash)%(PublishPackages.Identity).zip' -dest:%(PublishPackages.MSDeployDestProvider),computerName="$(_MSDeployComputerName)",authType=$(MSDeployAuth),userName="$(MSDeployUsername)",password="$(MSDeployPassword)" -disableLink:AppPoolExtension -disableLink:ContentExtension -disableLink:CertificateExtension $(_SetParam) $(_MsDeployAdditionalFlags) %(PublishPackages.AdditionalMSDeployParameters)</_Cmd>
+    </PropertyGroup>
+
+    <Message Condition="'$(_CmdPublish)' != 'true'" Importance="high" Text="$(_Cmd)" />
+    <Exec Command="$(_Cmd)" />
+  </Target>
+
+  <Target Name="_ResolveMSDeployPath">
+    <PropertyGroup>
+      <MSDeployPath Condition="'$(MSDeployPath)' == ''">$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\IIS Extensions\MSDeploy\3@InstallPath)</MSDeployPath>
+      <MSDeployPath Condition="'$(MSDeployPath)' != '' And !HasTrailingSlash('$(MSDeployPath)')">$(MSDeployPath)\</MSDeployPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(MSDeployPath)msdeploy.exe')" Text="msdeploy.exe is not found on this machine. Please install Web Deploy before execute the script." />
+  </Target>
+</Project>

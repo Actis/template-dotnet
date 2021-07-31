@@ -1,0 +1,100 @@
+variables:
+  _MsDeployAdditionalFlags: '-allowUntrusted -enableRule:AppOffline -retryAttempts:20 -skip:Directory=\\aspnet_client$$ -useCheckSum'
+  Configuration: Release
+  SmtpDeliveryMethod: Network
+  SmtpServer: relay.digillect.com
+  SmtpServerPort: 25
+  # SmtpServerUsername: ''
+  # SmtpServerPassword: ''
+  # SmtpServerEnableSSL: 'true'
+  # SmtpPickupDirectory: ''
+
+stages:
+  - build
+  - review
+  - staging
+  - production
+
+build:
+  stage: build
+  tags:
+    - .net
+    - msbuild
+    - nuget
+  variables:
+#    GIT_DEPTH: 1
+  script: call build.cmd /t:Build
+  artifacts:
+    paths:
+      - artifacts/build/
+      - build.*
+
+.deploy:
+  tags:
+    - msbuild
+    - msdeploy
+  only:
+    refs:
+      - master
+  variables:
+    GIT_STRATEGY: none
+  script: call build.cmd /t:PrepareParametersXml;Publish
+  needs:
+    - job: build
+      artifacts: true
+
+.deploy:review:
+  extends: .deploy
+  stage: review
+  only:
+    variables:
+      - $ENV_REVIEW_COMPUTERNAME
+      - $ENV_REVIEW_PARAM_IISPATH
+  variables:
+    MSDeployComputerName: https://$ENV_REVIEW_COMPUTERNAME:8172/MSDeploy.axd
+    MSDeployAuth: Basic
+    MSDeployUsername: $ENV_REVIEW_AUTH_USERNAME
+    MSDeployPassword: $ENV_REVIEW_AUTH_PASSWORD
+    IisPath: $ENV_REVIEW_PARAM_IISPATH
+    ConnectionString: $ENV_REVIEW_CONNECTION_STRING
+  environment:
+    name: review
+    url: $ENV_REVIEW_URL
+
+.deploy:staging:
+  extends: .deploy
+  stage: staging
+  only:
+    variables:
+      - $ENV_STAGING_COMPUTERNAME
+      - $ENV_STAGING_PARAM_IISPATH
+  variables:
+    MSDeployComputerName: https://$ENV_STAGING_COMPUTERNAME:8172/MSDeploy.axd
+    MSDeployAuth: Basic
+    MSDeployUsername: $ENV_STAGING_AUTH_USERNAME
+    MSDeployPassword: $ENV_STAGING_AUTH_PASSWORD
+    IisPath: $ENV_STAGING_PARAM_IISPATH
+    ConnectionString: $ENV_STAGING_CONNECTION_STRING
+  environment:
+    name: staging
+    url: $ENV_STAGING_URL
+  when: manual
+
+.deploy:production:
+  extends: .deploy
+  stage: production
+  only:
+    variables:
+      - $ENV_PRODUCTION_COMPUTERNAME
+      - $ENV_PRODUCTION_PARAM_IISPATH
+  variables:
+    MSDeployComputerName: https://$ENV_PRODUCTION_COMPUTERNAME:8172/MSDeploy.axd
+    MSDeployAuth: Basic
+    MSDeployUsername: $ENV_PRODUCTION_AUTH_USERNAME
+    MSDeployPassword: $ENV_PRODUCTION_AUTH_PASSWORD
+    IisPath: $ENV_PRODUCTION_PARAM_IISPATH
+    ConnectionString: $ENV_PRODUCTION_CONNECTION_STRING
+  environment:
+    name: production
+    url: $ENV_PRODUCTION_URL
+  when: manual

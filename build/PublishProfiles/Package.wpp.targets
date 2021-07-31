@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    Replace the long file path in the package with "website".
+    You can disable this by setting the property $(EnableAddReplaceToUpdatePackagePath) to false.
+  -->
+  <PropertyGroup>
+    <PackagePath Condition="'$(PackagePath)' == ''">website</PackagePath>
+    <EnableAddReplaceToUpdatePackagePath Condition="'$(EnableAddReplaceToUpdatePackagePath)' == ''">true</EnableAddReplaceToUpdatePackagePath>
+
+    <MSDeployPackagePublishDependsOn>
+      $(MSDeployPackagePublishDependsOn);
+      _AddReplaceRuleForAppPath;
+    </MSDeployPackagePublishDependsOn>
+
+    <PackageDependsOn>
+      $(PackageDependsOn);
+      _AddReplaceRuleForAppPath;
+    </PackageDependsOn>
+  </PropertyGroup>
+
+  <Target Name="_AddReplaceRuleForAppPath" Condition="'$(EnableAddReplaceToUpdatePackagePath)' == 'true'">
+    <PropertyGroup>
+      <_PkgPathFull Condition="'$(PublishIntermediateOutputPath)' != ''">$([System.IO.Path]::GetFullPath($(PublishIntermediateOutputPath)))</_PkgPathFull>
+      <_PkgPathFull Condition="'$(WPPAllFilesInSingleFolder)' != ''">$([System.IO.Path]::GetFullPath($(WPPAllFilesInSingleFolder)))</_PkgPathFull>
+      <!-- $(WPPAllFilesInSingleFolder) is not available on VS2010 so fall back to $(_PackageTempDir) -->
+      <_PkgPathFull Condition="'$(_PkgPathFull)' == ''">$([System.IO.Path]::GetFullPath($(_PackageTempDir)))</_PkgPathFull>
+    </PropertyGroup>
+
+    <!-- add the replace rule to update the path -->
+    <ItemGroup>
+      <MsDeployReplaceRules Include="replaceFullPath">
+        <Match>$([System.Text.RegularExpressions.Regex]::Escape('$(_PkgPathFull)'))</Match>
+        <Replace>$(PackagePath)</Replace>
+        <Replace Condition="HasTrailingSlash('$(_PkgPathFull)') And !HasTrailingSlash('$(PackagePath)')">$(PackagePath)\</Replace>
+      </MsDeployReplaceRules>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_AutoParameterizationWebConfigConnectionStringsReplaceFullPath" AfterTargets="PreAutoParameterizationWebConfigConnectionStrings" BeforeTargets="AutoParameterizationWebConfigConnectionStringsCore" Condition="'$(EnableAddReplaceToUpdatePackagePath)' == 'true'">
+    <ItemGroup>
+      <_WebConfigsToAutoParmeterizeCS>
+        <TransformScope>$([System.String]::Copy('%(TransformScope)').Replace('$([System.IO.Path]::GetFullPath($(WPPAllFilesInSingleFolder)))', '$(PackagePath)'))</TransformScope>
+      </_WebConfigsToAutoParmeterizeCS>
+    </ItemGroup>
+  </Target>
+</Project>

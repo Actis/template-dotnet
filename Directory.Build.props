@@ -1,0 +1,12 @@
+﻿<Project>
+
+  <PropertyGroup>
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)CodeAnalysis.ruleset</CodeAnalysisRuleSet>
+    <PublishProfileRootFolder Condition="'$(PublishProfileRootFolder)' == ''">$(MSBuildThisFileDirectory)\build\PublishProfiles</PublishProfileRootFolder>
+  </PropertyGroup>
+
+</Project>
